@@ -215,3 +215,43 @@ def calibrate_masks(sensitivity_scores, sparsity_ratio=0.1, keep_least_sensitive
             masks[p] = mask
             
     return masks
+
+    def calibrate_masks_extended(model, strategy='least_sensitive', sparsity_ratio=0.1, sensitivity_scores=None):
+    """
+    实现项目第4部分的扩展功能：多种梯度掩码校准规则 [cite: 77]
+    """
+    masks = {}
+    params = [p for p in model.parameters() if p.requires_grad]
+    
+    # 1. 获取所有待评估的分数
+    if strategy in ['least_sensitive', 'most_sensitive']:
+        all_values = torch.cat([s.view(-1) for s in sensitivity_scores.values()])
+    elif strategy in ['low_magnitude', 'high_magnitude']:
+        all_values = torch.cat([p.data.abs().view(-1) for p in params])
+    elif strategy == 'random':
+        all_values = torch.cat([torch.rand_like(p).view(-1) for p in params])
+
+    # 2. 计算阈值
+    k = int(all_values.numel() * sparsity_ratio)
+    
+    if strategy in ['least_sensitive', 'low_magnitude']:
+        threshold = torch.kthvalue(all_values, k).values.item()
+    elif strategy in ['most_sensitive', 'high_magnitude']:
+        threshold = torch.kthvalue(all_values, all_values.numel() - k).values.item()
+    else: # random
+        threshold = torch.kthvalue(all_values, k).values.item()
+
+    # 3. 生成掩码
+    for p in params:
+        if strategy == 'least_sensitive':
+            masks[p] = (sensitivity_scores[p] <= threshold).float()
+        elif strategy == 'most_sensitive':
+            masks[p] = (sensitivity_scores[p] >= threshold).float()
+        elif strategy == 'low_magnitude':
+            masks[p] = (p.data.abs() <= threshold).float()
+        elif strategy == 'high_magnitude':
+            masks[p] = (p.data.abs() >= threshold).float()
+        elif strategy == 'random':
+            masks[p] = (torch.rand_like(p) <= (k/all_values.numel())).float()
+            
+    return masks
