@@ -62,9 +62,9 @@ def run_fed_iid_task_arithmetic(rounds=50, num_clients=100, sampling_rate=0.1, s
     DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # 数据准备
-    builder = FederatedDataBuilder()
+    builder = FederatedDataBuilder(K=num_clients)
     # 获取 IID 划分
-    dict_users = builder.build_iid() 
+    dict_users = builder.get_iid_partition() 
     test_loader = DataLoader(builder.test_dataset, batch_size=128, shuffle=False)
 
     # 初始化全局模型
